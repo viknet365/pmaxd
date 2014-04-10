@@ -215,6 +215,8 @@ bool compareBuffer(struct PlinkBuffer  * Buff1,struct PlinkBuffer  * Buff2) {
   return true;   
 }
 
+
+// compare two buffer, 0xff are used as jocker char
 bool findCommand(struct PlinkBuffer  * Buff,struct PlinkBuffer  * BuffCommand)  {
   int i=0;
   if (Buff->size!=BuffCommand->size)  return false;
