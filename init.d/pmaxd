@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2008-2011 OpenWrt.org
+
+START=97
+
+start() {
+        [ -x /bin/pmaxd ] || return 1
+        service_start /bin/pmaxd
+        service_start /bin/testpmaxd
+        
+        }
+stop()  {
+        service_stop /bin/pmaxd
+        service_stop /bin/testpmaxd
+        }

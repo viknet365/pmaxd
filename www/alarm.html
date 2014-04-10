@@ -1,0 +1,181 @@
+<html>
+<head>
+ <meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=1.0;">  
+<style type="text/css">
+
+.button {
+padding: 0 5px;
+width: 100% 100%;
+overflow:visible;
+} 
+
+button.actionbutton {
+vertical-align:text-top;
+background-color:#FFF8F0;
+width: 25%;
+}
+
+.divbutton {
+position:relative;
+width:100%;
+}
+
+.icon {
+position:absolute;
+left:0px;
+width:100%;
+}
+
+span.zone {
+width: 32%;
+display: inline-block;
+vertical-align:middle;
+}
+
+.zoneicon {
+width:20%;
+vertical-align:middle;
+}
+
+ul.twocol { width:100%; margin: 0px; padding: 3%; }
+li { float: left; width: 47%; margin: 0px 3% 0px 0px; padding: 0px; }
+
+</style>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script type="text/javascript">
+
+var pmaxstatus;
+
+
+var myJSONXplObject = {
+    "msgtype" : "xpl-cmnd",
+    "msgschemaclass" : "security",
+    "msgschematype" : "basic",
+    "namevaluelist" : [{"name" : "command", "value":"arm-home" }]
+  };
+ 
+function armhome()  {
+	 myJSONXplObject.namevaluelist=[{"name" : "command", "value":"arm-home" }];
+  $.get("cgi-bin/xplsendjson.cgi",{xplpacket: JSON.stringify(myJSONXplObject)});
+  setTimeout(function() {refreshstat();},250);
+  
+}
+
+function armaway()  {
+  myJSONXplObject.namevaluelist=[ {"name" : "command", "value":"arm-away"}];
+  $.get("cgi-bin/xplsendjson.cgi",{xplpacket: JSON.stringify(myJSONXplObject)});
+ setTimeout(function() {refreshstat();},250);
+}
+
+function disarm() {
+	myJSONXplObject.namevaluelist=[{"name" : "command", "value":"disarm"}];
+  $.get("cgi-bin/xplsendjson.cgi",{xplpacket: JSON.stringify(myJSONXplObject)});
+  setTimeout(function() {refreshstat();},250);
+}
+
+function refreshstat()  {
+  $.get("cgi-bin/jsongetxplstate.cgi",
+    function(data){
+    
+    for (i=1;i<32;i++)
+    {
+      $('.sensor:eq(1)').remove();
+    }
+       
+    pmaxstatus = $.parseJSON(data);
+    
+    $('.sensor .interior').hide(); 
+    $('.sensor .perimeter').hide();
+    $('.sensor .24hour').hide();
+    $('.sensor .low-battery').hide();
+    $('.sensor .tamper').hide();    
+    $('.sensor .true').hide();
+    $('.sensor .false').hide();
+ 
+    $('#armed-away').hide();
+    $('#armed-home').hide();
+    $('#arming-home').hide();
+    $('#arming-away').hide();
+    $('#disarmed').hide();
+    
+     
+  for (i=0;i<pmaxstatus.sensor.length;i++)
+  {
+    $('.sensor:last').attr('id',"zone"+i);
+    $('.sensor:last').clone(true).insertAfter('.sensor:last');          
+  }
+  $('.sensor:last').remove();
+    
+  $('#'+pmaxstatus.pmaxstatus).show();   
+    
+  for (i=0;i<pmaxstatus.sensor.length;i++)
+  { 
+    $('#zone'+i+' .zone').text(pmaxstatus.sensor[i].zone);
+    $('#zone'+i+' .'+pmaxstatus.sensor[i].alert+'.'+pmaxstatus.sensor[i].type ).show();
+    if (pmaxstatus.sensor[i].tamper=="true")     $('#zone'+i+' .tamper').show(); 
+    if (pmaxstatus.sensor[i].lowbattery=="true") $('#zone'+i+' .low-battery').show();               
+  }  
+    }
+  );
+}
+
+
+$(window).resize(function() {
+  var cw = $('.divbutton').width();
+$('.divbutton').css({'height':cw+'px'});
+});
+
+$(document).ready(function()  {
+  $('button.armhome'    ).click(function(evt) { armhome();});
+  $('button.armaway'    ).click(function(evt) { armaway();});
+  $('button.disarm'     ).click(function(evt) { disarm();});
+  $('button.refreshstat').click(function(evt) { refreshstat();});
+
+  var cw = $('.divbutton').width();
+  $('.divbutton').css({'height':cw+'px'});  
+  refreshstat();
+});
+ 
+</script>
+</head>
+<body style="margin: 0px; max-width:600px;">
+
+<p>
+  <button  class="actionbutton armhome" type="button" >
+    <div class="divbutton">
+      <img class="icon" src="armhome.png" />
+      <img id="armed-home" class="icon" src="ombre-armhome.png" />
+      <img id="arming-home" class="icon" src="ombre-armingaway.png" />
+    </div>
+  </button><button class="actionbutton armaway" type="button" style="background-color:#FFF0F0" >
+    <div class="divbutton">
+      <img class="icon" src="armaway.png" />
+      <img id="armed-away" class="icon" src="ombre-armaway.png" />
+      <img id="arming-away" class="icon" src="ombre-armingaway.png" />
+    </div>
+  </button><button  class="actionbutton disarm"  type="button" style="background-color:#F0FFF0" >
+    <div class="divbutton">
+      <img class="icon" src="disarm.png" />
+      <img id="disarmed" class="icon" src="ombre-disarm.png" />
+    </div>
+  </button><button  class="actionbutton refreshstat" type="button" style="background-color:#F0F0FF" >
+    <div class="divbutton">
+      <img class="icon" src="refresh.png" />
+    </div>
+  </button>   
+</p>
+  <ul class="twocol">  
+    <li class="sensor">  
+      <span class="zone">zone</span>      
+        <img class="24hour    true  zoneicon" src="open.png"       />
+        <img class="24hour    false zoneicon" src="close.png"      />
+        <img class="perimeter true  zoneicon" src="door-red.png"   />
+        <img class="perimeter false zoneicon" src="door-green.png" />
+        <img class="interior  true  zoneicon" src="PIR-red.png"    />
+        <img class="interior  false zoneicon" src="PIR-green.png"  />
+        <img class="tamper          zoneicon" src="tamper.png"     /> 
+        <img class="low-battery     zoneicon" src="lowbattery.png" />     
+      </li>
+    </ul>
+  </body>
+</html>
