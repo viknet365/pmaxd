@@ -1,5 +1,5 @@
 # build helloworld executable when user executes "make"
-all: pmaxd xplsendjson jsongetxplstate test testpmaxd
+all: pmaxd xplsendjson jsongetxplstate testpmaxd
 pmaxd: pmaxd.o
 	$(CC) $(LDFLAGS) pmaxd.o -o pmaxd -lxPL -lconfig
 pmaxd.o: pmaxd.c
