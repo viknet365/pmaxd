@@ -12,10 +12,6 @@ jsongetxplstate: jsongetxplstate.o
 	$(CC) $(LDFLAGS) jsongetxplstate.o -o jsongetxplstate.cgi -lxPL
 jsongetxplstate.o: jsongetxplstate.c
 	$(CC) $(CFLAGS) -c jsongetxplstate.c
-test: test.o
-	$(CC) $(LDFLAGS) test.o -o test -lxPL -lconfig
-test.o: test.c
-	$(CC) $(CFLAGS) -c test.c
 testpmaxd: testpmaxd.o
 	$(CC) $(LDFLAGS) testpmaxd.o -o testpmaxd -lxPL -lconfig
 testpmaxd.o: testpmaxd.c
