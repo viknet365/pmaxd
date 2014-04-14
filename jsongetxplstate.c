@@ -286,13 +286,14 @@ int main(void)
   {
 //    printf ("%s\n",element);
     if ( strcmp(pmaxSystem.sensor[i].id,"")!=0 ) { 
-    sprintf(tmpbuff,"{\"zone\":\"%s\",\"type\":\"%s\",\"alert\":\"%s\",\"armed\":\"%s\",\"tamper\":\"%s\",\"low-battery\":\"%s\"},",
+    sprintf(tmpbuff,"{\"zone\":\"%s\",\"type\":\"%s\",\"alert\":\"%s\",\"armed\":\"%s\",\"tamper\":\"%s\",\"low-battery\":\"%s\",\"alarm\":\"%s\"},",
     pmaxSystem.sensor[i].id,
     pmaxSystem.sensor[i].type,
     pmaxSystem.sensor[i].alert,
     pmaxSystem.sensor[i].armed,
     pmaxSystem.sensor[i].tampered,
-    pmaxSystem.sensor[i].lowbattery);
+    pmaxSystem.sensor[i].lowbattery,
+    pmaxSystem.sensor[i].alarmed,);
     strcat(buff,tmpbuff);
     //element = strtok (NULL, ",");
     //if (element!=NULL)
