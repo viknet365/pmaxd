@@ -86,6 +86,7 @@ char *tamper;                //OK
 char *alert;                 //OK
 char *state;                 //OK
 char *armed;                 //OK
+char *alarm;                 //OK
 };
 
 struct Zone {
