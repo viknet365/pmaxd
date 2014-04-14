@@ -144,7 +144,7 @@ void pmaxdMessageHandler(xPL_ServicePtr theService, xPL_MessagePtr theMessage, x
       xPL_setSchema(pmaxdMessage, "security", "zoneinfo");              // setschema to security.basic
       xPL_setMessageNamedValue(pmaxdMessage, "zone", zonebuffer);
       xPL_setMessageNamedValue(pmaxdMessage, "zone-type", gatestat.zone[zone].info.zonetype);
-      xPL_setMessageNamedValue(pmaxdMessage, "alarm", gatestat.zone[zone].info.alarm);
+      
      // if (pmaxSystem.sensor[zone].type==interior  )  xPL_setMessageNamedValue(pmaxdMessage, "zone-type", "interior");
      // if (pmaxSystem.sensor[zone].type==perimeter  )  xPL_setMessageNamedValue(pmaxdMessage, "zone-type", "perimeter");      
       DEBUG(LOG_DEBUG,"xpl message sent: %s",xPL_formatMessage(pmaxdMessage));
@@ -177,8 +177,8 @@ void pmaxdMessageHandler(xPL_ServicePtr theService, xPL_MessagePtr theMessage, x
       //else  xPL_setMessageNamedValue(pmaxdMessage, "armed", "false"); 
       
    
-      xPL_setMessageNamedValue(pmaxdMessage, "alarm", "false");
-      
+     
+      xPL_setMessageNamedValue(pmaxdMessage, "alarm", gatestat.zone[zone].stat.alarm);
       xPL_setMessageNamedValue(pmaxdMessage, "state", gatestat.zone[zone].stat.state);
       
       xPL_setMessageNamedValue(pmaxdMessage, "tamper", gatestat.zone[zone].stat.tamper);
