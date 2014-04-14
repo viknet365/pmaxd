@@ -293,7 +293,7 @@ int main(void)
     pmaxSystem.sensor[i].armed,
     pmaxSystem.sensor[i].tampered,
     pmaxSystem.sensor[i].lowbattery,
-    pmaxSystem.sensor[i].alarmed,);
+    pmaxSystem.sensor[i].alarmed);
     strcat(buff,tmpbuff);
     //element = strtok (NULL, ",");
     //if (element!=NULL)
