@@ -147,6 +147,7 @@ for (i=2;i<=6;i++)
 //      pmaxSystem.sensor[i].type=perimeter;
       gatestat.zone[i].info.zonetype=XplTypePerimeter;
       gatestat.zone[i].info.alarmtype=XplAlarmTypeBurglary;
+      gatestat.zone[i].stat.alarm=XplFalse;
       sprintf(gatestat.zone[i].info.id,"%d",i);      
   }
         
@@ -314,6 +315,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
       if (gatestat.zone[i].enrolled) {
       //pmaxSystem.sensor[i].armed=false;
       gatestat.zone[i].stat.armed=XplFalse;
+      gatestat.zone[i].stat.alarm=XplFalse;
       }
     }   
   }
@@ -365,7 +367,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
         
  // pmaxSystem.readytoarm=((pmaxSystem.flags & 0x01)==1);
 
-  // if system state flag says it is a zone event (bite 5 of system flag)  
+  // if system state flag says it is a zone event (bit 5 of system flag)  
    if (Buff->buffer[4] & 1<<5) {
     sprintf(tpbuff1,"     Zone %d %s", Buff->buffer[5],PmaxZoneEventTypes[Buff->buffer[6]]);
     if  ( 0<Buff->buffer[5] && Buff->buffer[5]<30 && Buff->buffer[6]==5 )
@@ -401,6 +403,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
     int byte=(i-1)/8;
     int offset=(i-1)%8;
     if (ZoneBuffer[byte] & 1<<offset) {
+     if ( strcmp(gatestat.status,XplStatusArmed)==0    ) gatestat.zone[i].stat.alarm=XplTrue; 
       DEBUG(LOG_INFO,"Zone %d is open",i );
   //    pmaxSystem.sensor[i].state=SensorOpen;
       gatestat.zone[i].stat.alert=XplTrue;      
