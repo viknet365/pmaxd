@@ -165,6 +165,8 @@ void webgatewayMessageHandler(xPL_ServicePtr theService, xPL_MessagePtr theMessa
         strcpy(pmaxSystem.sensor[zone].tampered,xPL_getMessageNamedValue(theMessage, "tamper"));      
       if ( xPL_getMessageNamedValue(theMessage, "low-battery")!=NULL )
         strcpy(pmaxSystem.sensor[zone].lowbattery,xPL_getMessageNamedValue(theMessage, "low-battery"));
+      if ( xPL_getMessageNamedValue(theMessage, "alarm")!=NULL )
+        strcpy(pmaxSystem.sensor[zone].alarmed,xPL_getMessageNamedValue(theMessage, "alarm"));
       strcpy(pmaxSystem.sensor[zone].enrolled,"true");     
     }   
     
