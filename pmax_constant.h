@@ -403,7 +403,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
     int byte=(i-1)/8;
     int offset=(i-1)%8;
     if (ZoneBuffer[byte] & 1<<offset) {
-     if ( strcmp(gatestat.status,XplStatusArmed)==0    ) gatestat.zone[i].stat.alarm=XplTrue; 
+     if ( gatestat.status==XplStatusArmed    ) gatestat.zone[i].stat.alarm=XplTrue; 
       DEBUG(LOG_INFO,"Zone %d is open",i );
   //    pmaxSystem.sensor[i].state=SensorOpen;
       gatestat.zone[i].stat.alert=XplTrue;      
