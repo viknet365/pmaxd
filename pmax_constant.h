@@ -157,7 +157,9 @@ for (i=2;i<=6;i++)
   count = config_setting_length(zoneName);
     
         printf("I have %d zone:\n", count);
-        for (i = 0; i < count; i++) {  
+        for (i = 0; i < count; i++) { 
+         
+         DEBUG(LOG_NOTICE,"zone: %i, name: %s",i,config_setting_get_string_elem(zoneName, i));
            if (config_setting_get_string_elem(zoneName, i)!=0x00)       
              strcpy(gatestat.zone[i+1].info.id,config_setting_get_string_elem(zoneName, i));   
         }
