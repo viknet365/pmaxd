@@ -24,6 +24,7 @@ char XplStateEnabled[] ="enabled" ;
 
 char XplStatusDisarmed[]="disarmed";
 char XplStatusArmed[]   ="armed"   ;
+char XplStatusAlarm[]   ="alarm"   ;
 
 char XplStatusPMDisarmed[]="disarmed";
 char XplStatusPMArmedAway[]="armed-away";
@@ -292,21 +293,25 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
   char tpbuff[MAX_BUFFER_SIZE];
   char tpbuff1[MAX_BUFFER_SIZE];
   tpbuff[0]=0;
+  
+  int pmaxsystemstatus=Buff->buffer[3];
+  int pmaxsystemstate=Buff->buffer[4];
+  
   // system status
-  sprintf(tpbuff,"System status: %s   Flags :", PmaxSystemStatus[Buff->buffer[3]]);    
+  sprintf(tpbuff,"System status: %s   Flags :", PmaxSystemStatus[pmaxsystemstatus]);    
   int i=0;
   for (i=0;i<8;i++)
-    if (Buff->buffer[4] & 1<<i) {
+    if (pmaxsystemstate & 1<<i) {
       sprintf(tpbuff1," %s",SystemStateFlags[i]);
       strcat(tpbuff,tpbuff1);
     }      
 //  pmaxSystem.status=Buff->buffer[3];
 //  pmaxSystem.flags=Buff->buffer[4];
 
-  int pmaxSystemstatus=Buff->buffer[3];
+  
   
   // if disarmed or exit delay or exit delay
-  if (pmaxSystemstatus==0 ) {
+  if (pmaxsystemstatus==0 ) {
    // pmaxSystem.xplalarmstatus=AlarmDisarmed;
    // pmaxSystem.xplpmaxstatus=PmaxDisarmed;
     gatestat.pmstatus=XplStatusPMDisarmed;
@@ -321,7 +326,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
   }
   
   // if disarmed or exit delay or exit delay
-  if ( pmaxSystemstatus==1 ) {
+  if ( pmaxsystemstatus==1 ) {
    // pmaxSystem.xplalarmstatus=AlarmDisarmed;
    // pmaxSystem.xplpmaxstatus=PmaxDisarmed;
     gatestat.pmstatus=XplStatusPMArmingHome;
@@ -329,7 +334,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
   }
   
     // if disarmed or exit delay or exit delay
-  if ( pmaxSystemstatus==2) {
+  if ( pmaxsystemstatus==2) {
    // pmaxSystem.xplalarmstatus=AlarmDisarmed;
    // pmaxSystem.xplpmaxstatus=PmaxDisarmed;
     gatestat.pmstatus=XplStatusPMArmingAway;
@@ -337,7 +342,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
   }
   
   // if armed home or armed home bypass      
-  if (pmaxSystemstatus==4 ||  pmaxSystemstatus==10 )  {
+  if (pmaxsystemstatus==4 ||  pmaxsystemstatus==10 )  {
     //pmaxSystem.xplalarmstatus=AlarmArmed;
     //pmaxSystem.xplpmaxstatus=PmaxArmedHome;
     gatestat.pmstatus=XplStatusPMArmedHome;    
@@ -349,7 +354,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
   }
   
   // if entry delay or armed away or armed away bypass    
-  if (pmaxSystemstatus==3 || pmaxSystemstatus==5 || pmaxSystemstatus==11)  {
+  if (pmaxsystemstatus==3 || pmaxsystemstatus==5 || pmaxsystemstatus==11)  {
  //   pmaxSystem.xplalarmstatus=AlarmArmed;
  //   pmaxSystem.xplpmaxstatus=PmaxArmedAway;
     gatestat.pmstatus=XplStatusPMArmedAway; 
@@ -362,13 +367,15 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
     }
   }
   
-  
+  if (pmaxsystemstate & 1<<7) {
+   gatestat.status=XplStatusAlarm;
+  }
   
         
  // pmaxSystem.readytoarm=((pmaxSystem.flags & 0x01)==1);
 
   // if system state flag says it is a zone event (bit 5 of system flag)  
-   if (Buff->buffer[4] & 1<<5) {
+   if (pmaxsystemstate & 1<<5) {
     sprintf(tpbuff1,"     Zone %d %s", Buff->buffer[5],PmaxZoneEventTypes[Buff->buffer[6]]);
     if  ( 0<Buff->buffer[5] && Buff->buffer[5]<30 && Buff->buffer[6]==5 )
     {
