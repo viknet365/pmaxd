@@ -1,5 +1,5 @@
 #define DEBUG(x,...) log_dfl(x,__FUNCTION__,__LINE__,__VA_ARGS__);		
- 
+
 void (*LOG)(int, const char *, va_list arg);
 int (*LOG_setmask)(int);
 
@@ -28,10 +28,10 @@ log_dfl(int priority,const char *function, int line,const char *format, ...)
 
   strcat(expanded_log,buffertime);
   strcat(expanded_log," ");
-  strcat(expanded_log,function);
-  strcat(expanded_log,":");
-  sprintf(expanded_line,"%04d]",line);
-  strcat(expanded_log,expanded_line);
+//  strcat(expanded_log,function);
+//  strcat(expanded_log,":");
+//  sprintf(expanded_line,"%04d]",line);
+//  strcat(expanded_log,expanded_line);
   strcat(expanded_log,format);
  
  
@@ -44,10 +44,10 @@ log_fl(int priority,const char *function, int line,const char *format, ...)
  va_list arglist;
  char expanded_log[1024]="[";
  char expanded_line[6];
- strcat(expanded_log,function);
- strcat(expanded_log,":");
- sprintf(expanded_line,"%04d]",line);
- strcat(expanded_log,expanded_line);
+// strcat(expanded_log,function);
+// strcat(expanded_log,":");
+// sprintf(expanded_line,"%04d]",line);
+// strcat(expanded_log,expanded_line);
  strcat(expanded_log,format); 
   
  va_start(arglist, format);
@@ -117,6 +117,7 @@ void log_console(int priority, const char *format, va_list arg)
   printf(" %s", loglevel);
   vprintf(format, arg);
   printf("\n");
+  fflush(stdout);
   //va_end(arglist);
 }
 
