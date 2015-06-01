@@ -44,10 +44,10 @@ char XplAlarmTypeOther[]   ="other";
 
  
 struct PlinkBuffer {
- unsigned char buffer[MAX_BUFFER_SIZE];
- unsigned char size;
- unsigned char description[27];
- void (*action)(struct PlinkBuffer *);
+	unsigned char buffer[MAX_BUFFER_SIZE];
+	unsigned char size;
+	unsigned char description[27];
+	void (*action)(struct PlinkBuffer *);
 };
 
 typedef enum {interior, perimeter, H24} PmaxSensorType;
