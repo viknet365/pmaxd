@@ -1,5 +1,5 @@
 #define DEBUG(x,...) log_dfl(x,__FUNCTION__,__LINE__,__VA_ARGS__);		
- 
+
 void (*LOG)(int, const char *, va_list arg);
 int (*LOG_setmask)(int);
 
