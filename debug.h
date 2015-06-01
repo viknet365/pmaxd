@@ -117,6 +117,7 @@ void log_console(int priority, const char *format, va_list arg)
   printf(" %s", loglevel);
   vprintf(format, arg);
   printf("\n");
+  fflush(stdout);
   //va_end(arglist);
 }
 
