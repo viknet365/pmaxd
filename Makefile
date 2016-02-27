@@ -1,4 +1,6 @@
 # build helloworld executable when user executes "make"
+CC=gcc
+CFLAGS=-g
 all: pmaxd xplsendjson jsongetxplstate test testpmaxd
 pmaxd: pmaxd.o
 	$(CC) $(LDFLAGS) pmaxd.o -o pmaxd ../../libxpl/src/libxPL.so -lconfig

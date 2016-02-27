@@ -1,5 +1,6 @@
-#define  MAX_BUFFER_SIZE 128
+#define  MAX_BUFFER_SIZE 256
 #define  PACKET_TIMEOUT 15000
+#define  MAX_IDLE_TIME 70000000
 #define  IDLE_TIME 10000
 
 #define	MAX_NAME_LENGTH 32
@@ -290,6 +291,7 @@ void PmaxStatusUpdatePanel(struct PlinkBuffer  * Buff)
 	int pmaxSystemstatus = Buff->buffer[3];
 	static short prev_status = 0;
 	char *prev_gate_status = gatestat.status;
+	char *prev_gate_pmstatus = gatestat.pmstatus;
 
 	sendBuffer(&PowerlinkCommand[Pmax_ACK]);
 
@@ -297,8 +299,15 @@ void PmaxStatusUpdatePanel(struct PlinkBuffer  * Buff)
 
 	// system status changed?
 	if (prev_status == (short) *(Buff->buffer + 4)) {
+		int f;
+	
 		sprintf(tpbuff, "System status: heart beat");
 		DEBUG(LOG_INFO,"%s", tpbuff);
+
+		// timestamping heartbeat file
+		f = creat("/tmp/pmaxd.heartbeat", S_IRWXU);
+		close(f);
+		
 		return;
 	}
 	prev_status = (short) *(Buff->buffer + 4);
@@ -380,6 +389,16 @@ void PmaxStatusUpdatePanel(struct PlinkBuffer  * Buff)
 		xPL_sendMessage(pmaxdTrigMessage);
 	}
 	
+	// if pmstatus has changed, sending an xPL-stat message
+	if (prev_gate_pmstatus != gatestat.pmstatus) {
+		pmaxdTrigMessage = xPL_createBroadcastMessage(pmaxdService, xPL_MESSAGE_STATUS);
+		xPL_setSchema(pmaxdTrigMessage, "security", "gateway");
+		xPL_setMessageNamedValue(pmaxdTrigMessage, "device", "pmaxplus"); 
+		xPL_setMessageNamedValue(pmaxdTrigMessage, "status", gatestat.pmstatus); 
+		DEBUG(LOG_DEBUG,"xpl message sent: %s",xPL_formatMessage(pmaxdTrigMessage));
+		xPL_sendMessage(pmaxdTrigMessage);
+	}
+	
 	// pmaxSystem.readytoarm=((pmaxSystem.flags & 0x01)==1);
 
 	// if system state flag says it is a zone event (bit 5 of system flag)  
@@ -422,13 +441,23 @@ void PmaxStatusUpdatePanel(struct PlinkBuffer  * Buff)
 		strcat(tpbuff,tpbuff1);
 	}
 	
-	// if Alarm-event, trigger external program
+	// if Alarm-event, send xpl message & trigger external program
 	if (Buff->buffer[4] & 1<<7) {
-		
+
+		pmaxdTrigMessage = xPL_createBroadcastMessage(pmaxdService, xPL_MESSAGE_TRIGGER);
+		xPL_setSchema(pmaxdTrigMessage, "security", "zone");
+		sprintf(tpbuff1, "zone.%d", i);
+		xPL_setMessageNamedValue(pmaxdTrigMessage, "device", tpbuff1); 
+		xPL_setMessageNamedValue(pmaxdTrigMessage, "event", "alarm");
+		xPL_setMessageNamedValue(pmaxdTrigMessage, "zone", gatestat.zone[i].info.id);
+		DEBUG(LOG_DEBUG,"xpl message sent: %s",xPL_formatMessage(pmaxdTrigMessage));
+		xPL_sendMessage(pmaxdTrigMessage);
+	
 		if (command != NULL) {
 		
 			DEBUG(LOG_INFO,"Executing %s arg:%s", command, tpbuff);
 			
+			signal(SIGCHLD, SIG_IGN); // To avoid having to wait for child process
 			pid_t pid = fork();
 			if (pid == 0) {
 				execlp(command, command, tpbuff, (char *) NULL);

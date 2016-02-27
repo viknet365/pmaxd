@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <libconfig.h> 
 #include <netinet/in.h>
+#include <signal.h>
 
 #include <xPL.h>
 
@@ -27,7 +28,7 @@ static xPL_MessagePtr pmaxdTrigMessage = NULL;
 
   
 
-int fd; /* File descriptor for the port */
+int fd = -1; /* File descriptor for the port */
 int foregroundOption = 0;
 int verboseLevel = 0;
 config_t cfg, *cf;
@@ -111,6 +112,9 @@ void initSocket() {
     struct hostent *server;
 	const char *host;
 
+	/* Check if re-init case */
+	if (fd >= 0) close(fd);
+	
 	/* Create a non-blocking socket point */
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) 
@@ -424,25 +428,27 @@ int main(int argc, char **argv) {
   /* Daemon-specific initialization goes here */
           
         
-  struct timeval  tvLastSerialCharTime,tvCurrentTime;
-  double          lastSerialCharTime,currentTime;
+	struct timeval  tvLastSerialCharTime,tvCurrentTime;
+	double          lastSerialCharTime,currentTime;
  	struct PlinkBuffer commandBuffer;
  	commandBuffer.size=0;
  	
  	int eop=0;
-  int loop=0;
-  unsigned char *bufptr;  /* Current char in buffer */
+	int loop=0;
+	unsigned char *bufptr;  /* Current char in buffer */
  	
-  DEBUG(LOG_NOTICE,"Starting......");
+	DEBUG(LOG_NOTICE,"Starting......");
 
-  
+	gettimeofday(&tvLastSerialCharTime, NULL);
+	lastSerialCharTime = tvLastSerialCharTime.tv_sec*1000000 + (tvLastSerialCharTime.tv_usec);  
   
  	initXpl();
 	initSocket();
 //  initSerialPort();  
 	PmaxInit(); 
-  DEBUG(LOG_DEBUG,"Starting main loop....");
 
+	DEBUG(LOG_DEBUG,"Starting main loop....");
+	
 
 /* read characters into our string buffer until timeout */  
   while (!loop) {
@@ -473,9 +479,10 @@ int main(int argc, char **argv) {
 		eop=1;
 	}
 	
+	gettimeofday(&tvCurrentTime, NULL);
+	currentTime = tvCurrentTime.tv_sec*1000000 + (tvCurrentTime.tv_usec);
+	
 	if (eop==1) {
-		gettimeofday(&tvCurrentTime, NULL);
-		currentTime = tvCurrentTime.tv_sec*1000000 + (tvCurrentTime.tv_usec);
       
 		// if timeout, assume packet is finished, and manage it (check format/ deformat/......) 
 		if ((currentTime-lastSerialCharTime)> PACKET_TIMEOUT || commandBuffer.size == maxMsgLength) {
@@ -485,6 +492,16 @@ int main(int argc, char **argv) {
 			eop=0;
 		}
     }   
+
+	/* check if activity in the last MAX_IDLE_TIME (at the very least should be heartbeat message) */
+	if ((currentTime-lastSerialCharTime) > MAX_IDLE_TIME) {
+		
+		/* try to re-start the TCP connection */
+		DEBUG(LOG_INFO, "Reseting TCP connection");
+		initSocket();
+		lastSerialCharTime = currentTime;
+	}
+
     usleep(IDLE_TIME);
     xPL_processMessages(0);
   }

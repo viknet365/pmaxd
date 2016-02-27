@@ -7,24 +7,70 @@ static xPL_MessagePtr pmaxdMessage = NULL;
 
 
 void pmaxdMessageHandler(xPL_ServicePtr theService, xPL_MessagePtr theMessage, xPL_ObjectPtr userValue) {
+
+	char *xPL_command = xPL_getMessageNamedValue(theMessage, "command");
+	char *pmstatus = NULL;
+
 	DEBUG(LOG_DEBUG,"Received a pmaxd Message from %s-%s.%s of type %d for %s.%s\n", 
 	xPL_getSourceVendor(theMessage), xPL_getSourceDeviceID(theMessage), xPL_getSourceInstanceID(theMessage),
 	xPL_getMessageType(theMessage), xPL_getSchemaClass(theMessage), xPL_getSchemaType(theMessage));
-	DEBUG(LOG_DEBUG,"xpl message received: %s",xPL_formatMessage(theMessage));    
-	DEBUG(LOG_INFO,"command: %s ", xPL_getMessageNamedValue(theMessage, "command"));
+	DEBUG(LOG_DEBUG,"xPL message received: %s",xPL_formatMessage(theMessage));    
 	
-	if (strcmp("basic",xPL_getSchemaType(theMessage))==0 && xPL_getMessageNamedValue(theMessage, "command")!=NULL )  { 
-		if (strcmp("arm-away",xPL_getMessageNamedValue(theMessage, "command"))==0 ) {
-			DEBUG(LOG_INFO,"arming away.........");
+	if (strcmp("basic",xPL_getSchemaType(theMessage))==0 && xPL_command != NULL )  {
+	
+		DEBUG(LOG_INFO,"xPL command: %s ", xPL_command);
+		
+		// force sending of a new pmstatus to ensure sync with alarm system
+		gatestat.pmstatus = NULL;
+	
+		if (strcmp("arm-away", xPL_command)==0 ) {
+			DEBUG(LOG_INFO,"Arming away.........");
 			sendBuffer(&PowerlinkCommand[Pmax_ARMAWAY]);
+			pmstatus = XplStatusPMArmingAway;
 		} 
-		else if (strcmp("arm-home",xPL_getMessageNamedValue(theMessage, "command"))==0 ) {
-			DEBUG(LOG_INFO,"arming home........");
+		else if (strcmp("arm-home", xPL_command)==0 ) {
+			DEBUG(LOG_INFO,"Arming home........");
 			sendBuffer(&PowerlinkCommand[Pmax_ARMHOME]);
+			pmstatus = XplStatusPMArmingHome;
 		} 
-		else if (strcmp("disarm",xPL_getMessageNamedValue(theMessage, "command"))==0  )  {
-			DEBUG(LOG_INFO,"disarming.....");
+		else if (strcmp("disarm", xPL_command)==0  )  {
+			DEBUG(LOG_INFO,"Disarming.....");
 			sendBuffer(&PowerlinkCommand[Pmax_DISARM]);
+			pmstatus = XplStatusPMDisarmed;
+		}
+		else {
+			// handle different message format -> ON/OFF + type field
+			char *xPL_type = xPL_getMessageNamedValue(theMessage, "type");
+			
+			if (xPL_type != NULL) {
+				if (strcmp("OFF", xPL_command)==0 || strcmp("off", xPL_command)==0 || strcmp("Off", xPL_command)==0) {
+					DEBUG(LOG_INFO,"Disarming.....");
+					sendBuffer(&PowerlinkCommand[Pmax_DISARM]);
+					pmstatus = XplStatusPMDisarmed;
+				}
+				else if (strcmp("ON", xPL_command)==0 || strcmp("on", xPL_command)==0 || strcmp("On", xPL_command)==0) {
+					if (strcmp("arm-away", xPL_type)==0 ) {
+						DEBUG(LOG_INFO,"Arming away.........");
+						sendBuffer(&PowerlinkCommand[Pmax_ARMAWAY]);
+						pmstatus = XplStatusPMArmingAway;
+					} 
+					else if (strcmp("arm-home", xPL_type)==0 ) {
+						DEBUG(LOG_INFO,"Arming home........");
+						sendBuffer(&PowerlinkCommand[Pmax_ARMHOME]);
+						pmstatus = XplStatusPMArmingHome;
+					} 
+				}
+			}	
+		}
+		
+		// if something happened, send a status message
+		if (pmstatus != NULL) {
+			pmaxdTrigMessage = xPL_createBroadcastMessage(pmaxdService, xPL_MESSAGE_STATUS);
+			xPL_setSchema(pmaxdTrigMessage, "security", "gateway");
+			xPL_setMessageNamedValue(pmaxdTrigMessage, "device", "pmaxplus"); 
+			xPL_setMessageNamedValue(pmaxdTrigMessage, "status", pmstatus); 
+			DEBUG(LOG_DEBUG,"xpl message sent: %s",xPL_formatMessage(pmaxdTrigMessage));
+			xPL_sendMessage(pmaxdTrigMessage);
 		}
 		
 		return;
