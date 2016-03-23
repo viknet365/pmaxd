@@ -14,31 +14,24 @@
 #include <termios.h> /* POSIX terminal control definitions */
 #include <stdbool.h>
 #include <libconfig.h> 
+#include <netinet/in.h>
+#include <signal.h>
 
+#include <xPL.h>
 
-time_t lastValidSerialIO;
+static xPL_ServicePtr pmaxdService = NULL;
+static xPL_MessagePtr pmaxdTrigMessage = NULL;
 
 #include "debug.h" 
 #include "pmax_constant.h"
 #include "pmaxd-xpl.c"
 
- 
+  
 
-int fd; /* File descriptor for the port */
+int fd = -1; /* File descriptor for the port */
 int foregroundOption = 0;
 int verboseLevel = 0;
 config_t cfg, *cf;
-
-
-
-
-
-//struct timeval  tvLastSerialCharTime,tvCurrentTime;
-//double          lastSerialCharTime,currentTime;
- 
- 	
-  
-unsigned char *bufptr;  /* Current char in buffer */
 
 
 void initLog(int verboseLevel) {
@@ -66,7 +59,7 @@ void initSerialPort() {
 	device = config_lookup(cf, "device");
   count = config_setting_length(device);
     
-  DEBUG(LOG_INFO,"there are %d device in your config file",count);
+  DEBUG(LOG_INFO, "There are %d device in your config file",count);
   int n;
   for (n = 0; n < count; n++) {
     fd = open(config_setting_get_string_elem(device, n), O_RDWR | O_NOCTTY);
@@ -74,12 +67,12 @@ void initSerialPort() {
   }
 	
 	if (fd == -1) {
-    DEBUG(LOG_ERR,"open_port: Unable to open serial ports");
-    printf("exiting: no serial port available");
-    exit(EXIT_FAILURE);/*
-    * Could not open the port.
-	 */}
-	DEBUG(LOG_INFO,"opening %s",config_setting_get_string_elem(device, n));
+		DEBUG(LOG_ERR, "Open_port: Unable to open serial ports");
+		printf("Exiting: no serial port available");
+		exit(EXIT_FAILURE);/*
+    * Could not open the port.*/
+	}
+	DEBUG(LOG_INFO,"Opening %s",config_setting_get_string_elem(device, n));
 	
   fcntl(fd, F_SETFL, 0);
 			
@@ -88,7 +81,7 @@ void initSerialPort() {
 	*/ 
    tcgetattr(fd, &options);
 	/*
- 	* Set the baud rates to 9600...
+ 	* Set the baud rates to 19200...
   */
 	cfsetispeed(&options, B9600);
 	cfsetospeed(&options, B9600);
@@ -110,7 +103,58 @@ void initSerialPort() {
 	* Set the new options for the port...
 	*/
 	tcsetattr(fd, TCSAFLUSH, &options);
-  fcntl(fd, F_SETFL, FNDELAY);
+	fcntl(fd, F_SETFL, FNDELAY);
+}
+
+void initSocket() {
+    int portno, n;
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
+	const char *host;
+
+	/* Check if re-init case */
+	if (fd >= 0) close(fd);
+	
+	/* Create a non-blocking socket point */
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) 
+    {
+        perror("ERROR opening socket");
+        exit(1);
+    }
+
+	/* Construct the server address structure */
+	memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+	
+	/* check settings in the config file */
+	if (!config_lookup_string(cf, "host", &host)) {
+		DEBUG(LOG_ERR,"No host specified");
+		printf("No host specified");
+		exit(EXIT_FAILURE);
+	}
+	if (!config_lookup_int(cf, "port", &portno)) {
+		DEBUG(LOG_ERR,"No port specified");
+		printf("No port specified");
+		exit(EXIT_FAILURE);
+	}
+	DEBUG(LOG_NOTICE,"Opening %s:%d",host,portno);
+	serv_addr.sin_addr.s_addr = inet_addr(host);
+    serv_addr.sin_port = htons(portno);
+	
+    /* Now connect to the server */
+    if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
+    {
+         perror("ERROR connecting");
+         exit(1);
+    }		
+	
+	/* Switch the socket to non blocking */
+	if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK) <0)
+	{
+		perror("calling fcntl");
+		exit(1);
+	}
 }
 
 void parseCommandLineArgs(int argc, char **argv) {     
@@ -128,7 +172,7 @@ void parseCommandLineArgs(int argc, char **argv) {
       case 'h':
         fprintf (stderr, "usage:\n\t-f start in foreground \n\t-v enable verbose you cannot use more than vvvvv in daemon mode");
         fprintf (stderr, "\n\t-interface lo/eth0/... the network interface where xpl is listening");
-        fprintf (stderr, "\n\t-xpldebug anable xpl debugging");
+        fprintf (stderr, "\n\t-xpldebug anable xpl debugging\n");
   
         exit(0);
       case '?':
@@ -144,7 +188,7 @@ void parseCommandLineArgs(int argc, char **argv) {
     
 void logBuffer(int priority,struct PlinkBuffer * Buff)  {
   unsigned short i;
-  char printBuffer[MAX_BUFFER_SIZE*3+3];
+  char printBuffer[MAX_BUFFER_SIZE*3];
   char *bufptr;      /* Current char in buffer */
 	bufptr=printBuffer;
   for (i=0;i<(Buff->size);i++) {
@@ -161,14 +205,14 @@ unsigned char calculChecksum(struct PlinkBuffer * Buff) {
   for (i=0;i<(Buff->size);i++)
     checksum=checksum-Buff->buffer[i];
   checksum=checksum%0xFF;
-  DEBUG(LOG_DEBUG,"checksum: %04X",checksum);
+  DEBUG(LOG_DEBUG, "Checksum: %04X",checksum);
   return (unsigned char) checksum;
 } 
      
 void sendBuffer(struct PlinkBuffer * Buff)  {
   int i,err;
   struct PlinkBuffer writeBuffer;
-  DEBUG(LOG_DEBUG,"Sending the following buffer to serial TTY");  
+  DEBUG(LOG_DEBUG, "Sending the following buffer");  
   logBuffer(LOG_DEBUG,Buff);
   writeBuffer.buffer[0]=0x0D;
   for (i=0;i<(Buff->size);i++)
@@ -177,7 +221,7 @@ void sendBuffer(struct PlinkBuffer * Buff)  {
   writeBuffer.buffer[2+Buff->size]=0x0A;
   writeBuffer.size=Buff->size+3;
   err=write(fd,writeBuffer.buffer,Buff->size+3);
-  DEBUG(LOG_DEBUG,"result of serial write:: %i",err); 	
+  DEBUG(LOG_DEBUG, "Result of write: %i",err); 	
 }
   
 
@@ -193,11 +237,10 @@ bool deFormatBuffer(struct PlinkBuffer  * Buff) {
   Buff->size=Buff->size-3;
   checkedChecksum=calculChecksum(Buff);
   if (checksum==checkedChecksum)  {
-    DEBUG(LOG_DEBUG,"checksum OK");
-    lastValidSerialIO = time (NULL);
+    DEBUG(LOG_DEBUG, "Checksum OK");
   } 
   else  {
-    DEBUG(LOG_ERR,"checksum NOK calculated:%04X in packet:%04X",checkedChecksum,checksum);
+    DEBUG(LOG_ERR, "Checksum NOK calculated:%04X, in packet:%04X",checkedChecksum,checksum);
   }  
   return checksum==checkedChecksum;
 }  
@@ -211,19 +254,17 @@ bool compareBuffer(struct PlinkBuffer  * Buff1,struct PlinkBuffer  * Buff2) {
   for (i=0;i<Buff1->size;i++) {
     if (Buff1->buffer[i] != Buff2->buffer[i]) return false;
   }
-  DEBUG(LOG_DEBUG,"Both buffers are equal");
+  DEBUG(LOG_DEBUG, "Both buffers are equal");
   return true;   
 }
 
-
-// compare two buffer, 0xff are used as jocker char
 bool findCommand(struct PlinkBuffer  * Buff,struct PlinkBuffer  * BuffCommand)  {
   int i=0;
   if (Buff->size!=BuffCommand->size)  return false;
   for (i=0;i<Buff->size;i++)  {
     if ((Buff->buffer[i] != BuffCommand->buffer[i]) && (BuffCommand->buffer[i] != 0xFF )) return false;
   }
-  DEBUG(LOG_DEBUG,"Command find !!!!");
+  DEBUG(LOG_DEBUG, "Command found");
   return true;   
 }
 
@@ -259,108 +300,59 @@ void KeyPressHandling(void) {
     c = getchar();
  
     if ( c == 'c' ) {
-      printf("YOU HIT 'c' ...NOW QUITTING");
+      printf("YOU HIT 'c' ...NOW QUITTING\n");
       exit(1);
     }
     if ( c == 'h' ) {
-      DEBUG(LOG_NOTICE,"Arming home");
+      DEBUG(LOG_NOTICE, "Arming home");
       sendBuffer(&PowerlinkCommand[Pmax_ARMHOME]);
     }
     if ( c == 'd' ) {
-      DEBUG(LOG_NOTICE,"Disarm");
+      DEBUG(LOG_NOTICE, "Disarm");
       sendBuffer(&PowerlinkCommand[Pmax_DISARM]);
     }  
     if ( c == 'a' ) {
-      DEBUG(LOG_NOTICE,"Arming away");
+      DEBUG(LOG_NOTICE, "Arming away");
       sendBuffer(&PowerlinkCommand[Pmax_ARMAWAY]);
     }
     if ( c == 'g' ) {
-      DEBUG(LOG_NOTICE,"Get Event log");
+      DEBUG(LOG_NOTICE, "Get Event log");
       sendBuffer(&PowerlinkCommand[Pmax_GETEVENTLOG]);
     }
-    if ( c == 't' ) {
-      DEBUG(LOG_NOTICE,"try re-enroll");
-      sendBuffer(&PowerlinkCommand[Pmax_REENROLL]);
-    }
-    if ( c == 'v' ) {
-      DEBUG(LOG_NOTICE,"getting versions string");
-      sendBuffer(&PowerlinkCommand[Pmax_GETVERSION]);
-    }
     if ( c == 'r' ) {
-      DEBUG(LOG_NOTICE,"Request Status Update");
+      DEBUG(LOG_NOTICE, "Request Status Update");
       sendBuffer(&PowerlinkCommand[Pmax_REQSTATUS]);
     }
   }
 }        
-
-
-    ////////////////////////////////////////////
-
-void serialHandler() {
-  int nomorechar=0;
-  int eop=0;
-  struct PlinkBuffer commandBuffer;
-  commandBuffer.size=0;   
-  do {
-    usleep(PACKET_TIMEOUT);
-    nomorechar=0;
-    while (  (read(fd, commandBuffer.size+commandBuffer.buffer, 1) == 1)  ) { 
-//	if  ((read(fd, commandBuffer->size+commandBuffer->buffer, 1) == 1)) { 
-		  if (commandBuffer.size<(MAX_BUFFER_SIZE-1))
-		    commandBuffer.size++;
-      else
-        DEBUG(LOG_DEBUG,"Packet too big detected"); 	  
-//			gettimeofday(&tvLastSerialCharTime, NULL);
-//      lastSerialCharTime = tvLastSerialCharTime.tv_sec*1000000 + (tvLastSerialCharTime.tv_usec);
-      eop=1;
-      nomorechar=1;
-		}     		
-	}
-	while (nomorechar==1);
-   	
-		if (eop==1) {
-	//  	gettimeofday(&tvCurrentTime, NULL);
-  //    currentTime = tvCurrentTime.tv_sec*1000000 + (tvCurrentTime.tv_usec);
-      
-      // if timeout, assume packet is finished, and manage it (check format/ deformat/......) 
-  //    if ((currentTime-lastSerialCharTime)> PACKET_TIMEOUT ) {
-        packetManager(&commandBuffer);
-  //      eop=0;
-  //   }       
-    }      
-   }
-        /////////////////////////////////////////
-
  
 void packetManager(struct PlinkBuffer  * commandBuffer) {
-  DEBUG(LOG_DEBUG,"Timeout while waiting packet: assumig packet is complete......");                
   if (deFormatBuffer(commandBuffer)) {
-    DEBUG(LOG_DEBUG,"Packet received");
+    DEBUG(LOG_DEBUG, "Packet received");
     logBuffer(LOG_DEBUG,commandBuffer);         
     int cmd_not_recognized=1;
     int i;
     for (i=0;i<Pmax_NBCOMMAND;i++)  {
-      if (findCommand(commandBuffer,&PmaxCommand[i]))  {
+      if (findCommand(commandBuffer, &PmaxCommand[i]))  {
         PmaxCommand[i].action(commandBuffer);
         cmd_not_recognized=0;
         break;
       }   
     }  
     if ( cmd_not_recognized==1 )  {
-      DEBUG(LOG_INFO,"Packet not recognized");
-      logBuffer(LOG_INFO,commandBuffer);
+      DEBUG(LOG_INFO, "Packet not recognized");
+      logBuffer(LOG_INFO, commandBuffer);
       sendBuffer(&PowerlinkCommand[Pmax_ACK]);    
     }                  
   }                                                         
   else  {
-    DEBUG(LOG_ERR,"Packet not correctly formated");
+    DEBUG(LOG_ERR, "Packet not correctly formated");
     logBuffer(LOG_ERR,commandBuffer);
   }              
   //command has been treated, reset the commandbuffer
   commandBuffer->size=0;                    
-  //reset End Of Packet to listen for a new packet       
         
-  DEBUG(LOG_DEBUG,"End of packet treatment");
+  DEBUG(LOG_DEBUG, "End of packet treatment");
 }
 
           
@@ -368,7 +360,7 @@ int main(int argc, char **argv) {
   cf = &cfg;
   config_init(cf);
   
-  if (!config_read_file(cf, "/etc/pmaxd.conf")) {
+  if (!config_read_file(cf, "./pmaxd.conf")) {
             fprintf(stderr, "%s:%d - %s\n",
                 config_error_file(cf),
                 config_error_line(cf),
@@ -376,14 +368,12 @@ int main(int argc, char **argv) {
             config_destroy(cf);
             return(EXIT_FAILURE);
         }
-        
-        config_lookup_int(cf, "packet_timeout", &PACKET_TIMEOUT);
 
         
 
          
   /* Our process ID and Session ID */
-  pid_t pid=0, sid=0;        
+  pid_t pid = 0, sid = 0;        
   
   int helpOption = 0;
    
@@ -411,13 +401,13 @@ int main(int argc, char **argv) {
        
   DEBUG (LOG_NOTICE, "Program started by User %d", getuid ());
         
-  DEBUG (LOG_INFO, "setting SID"); 
+  DEBUG (LOG_INFO, "Setting SID"); 
                                      
   /* Create a new SID for the child process */
   if  (foregroundOption==0) sid = setsid();
   if (sid < 0) {
     /* Log the failure */
-    DEBUG (LOG_INFO, "cannot set SID");
+    DEBUG (LOG_INFO, "Cannot set SID");
     exit(EXIT_FAILURE);
   }
 
@@ -429,7 +419,7 @@ int main(int argc, char **argv) {
   
   /* Close out the standard file descriptors */
   if  (foregroundOption==0) {
-    DEBUG (LOG_INFO, "closing std file descriptor");
+    DEBUG (LOG_INFO, "Closing std file descriptor");
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
@@ -438,35 +428,84 @@ int main(int argc, char **argv) {
   /* Daemon-specific initialization goes here */
           
         
-
-// 	struct PlinkBuffer commandBuffer;
-// 	commandBuffer.size=0;
+	struct timeval  tvLastSerialCharTime,tvCurrentTime;
+	double          lastSerialCharTime,currentTime;
+ 	struct PlinkBuffer commandBuffer;
+ 	commandBuffer.size=0;
  	
- 	int loop=0;
-  DEBUG(LOG_NOTICE,"Starting......");
+ 	int eop=0;
+	int loop=0;
+	unsigned char *bufptr;  /* Current char in buffer */
+ 	
+	DEBUG(LOG_NOTICE,"Starting......");
 
-  
+	gettimeofday(&tvLastSerialCharTime, NULL);
+	lastSerialCharTime = tvLastSerialCharTime.tv_sec*1000000 + (tvLastSerialCharTime.tv_usec);  
   
  	initXpl();
-  initSerialPort();  
+	initSocket();
+//  initSerialPort();  
 	PmaxInit(); 
-  DEBUG(LOG_DEBUG,"Sarting main loop....");
 
+	DEBUG(LOG_DEBUG,"Starting main loop....");
+	
 
 /* read characters into our string buffer until timeout */  
   while (!loop) {
+	int maxMsgLength = MAX_BUFFER_SIZE;
    
     if (foregroundOption==1)  //manage keypress if interactive mode
       KeyPressHandling();
-    
        
-    serialHandler();
-    
-    
-       
-    usleep(1000);
+  	while ((read(fd, commandBuffer.size+commandBuffer.buffer, 1) == 1) && commandBuffer.size < maxMsgLength) {
+		DEBUG(LOG_DEBUG, "Received char 0x%02x buf position %d", (int) (commandBuffer.size+commandBuffer.buffer)[0], commandBuffer.size);
+		commandBuffer.size++;
+		
+		/* for "known" messages, limit read to corresponding size */
+		if (commandBuffer.size == 2) switch (commandBuffer.buffer[1]) {
+			case 0x02:
+			case 0x08:
+				maxMsgLength = 5;
+				break;
+			case 0xA5:
+			case 0xA7:
+			case 0xAA:
+				maxMsgLength = 15;
+				break;
+		}
+
+		gettimeofday(&tvLastSerialCharTime, NULL);
+		lastSerialCharTime = tvLastSerialCharTime.tv_sec*1000000 + (tvLastSerialCharTime.tv_usec);
+		eop=1;
+	}
+	
+	gettimeofday(&tvCurrentTime, NULL);
+	currentTime = tvCurrentTime.tv_sec*1000000 + (tvCurrentTime.tv_usec);
+	
+	if (eop==1) {
+      
+		// if timeout, assume packet is finished, and manage it (check format/ deformat/......) 
+		if ((currentTime-lastSerialCharTime)> PACKET_TIMEOUT || commandBuffer.size == maxMsgLength) {
+			DEBUG(LOG_DEBUG, "Interpreting packet");
+			packetManager(&commandBuffer);
+			maxMsgLength = MAX_BUFFER_SIZE;
+			eop=0;
+		}
+    }   
+
+	/* check if activity in the last MAX_IDLE_TIME (at the very least should be heartbeat message) */
+	if ((currentTime-lastSerialCharTime) > MAX_IDLE_TIME) {
+		
+		/* try to re-start the TCP connection */
+		DEBUG(LOG_INFO, "Reseting TCP connection");
+		initSocket();
+		lastSerialCharTime = currentTime;
+	}
+
+    usleep(IDLE_TIME);
     xPL_processMessages(0);
-  }  
+  }
+  
   closelog ();
   exit(EXIT_SUCCESS);
 }

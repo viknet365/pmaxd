@@ -28,10 +28,10 @@ log_dfl(int priority,const char *function, int line,const char *format, ...)
 
   strcat(expanded_log,buffertime);
   strcat(expanded_log," ");
-  strcat(expanded_log,function);
-  strcat(expanded_log,":");
-  sprintf(expanded_line,"%04d]",line);
-  strcat(expanded_log,expanded_line);
+//  strcat(expanded_log,function);
+//  strcat(expanded_log,":");
+//  sprintf(expanded_line,"%04d]",line);
+//  strcat(expanded_log,expanded_line);
   strcat(expanded_log,format);
  
  
@@ -44,10 +44,10 @@ log_fl(int priority,const char *function, int line,const char *format, ...)
  va_list arglist;
  char expanded_log[1024]="[";
  char expanded_line[6];
- strcat(expanded_log,function);
- strcat(expanded_log,":");
- sprintf(expanded_line,"%04d]",line);
- strcat(expanded_log,expanded_line);
+// strcat(expanded_log,function);
+// strcat(expanded_log,":");
+// sprintf(expanded_line,"%04d]",line);
+// strcat(expanded_log,expanded_line);
  strcat(expanded_log,format); 
   
  va_start(arglist, format);
