@@ -1,6 +1,9 @@
 #define  MAX_BUFFER_SIZE 250
 #define  PACKET_TIMEOUT_DEFINED 2000
+#define  EXECUTE_SCRIPTS_DEFINED 0
 int PACKET_TIMEOUT=PACKET_TIMEOUT_DEFINED; 
+int EXECUTE_SCRIPTS = EXECUTE_SCRIPTS_DEFINED;
+int fileOpen = 0;
 
 
 #define Pmax_ACK  0
@@ -199,16 +202,33 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
   else
     strcpy(tpzone,PmaxZoneUser[Buff->buffer[9]]);   
   
+  FILE *fp;
+char* str = "string";
+int x = 10;
+
+if(fileOpen==0){
+fp=fopen("/var/www/event.log", "w");//openfile
+if(fp == NULL)
+    fileOpen==1;
+}	
+
+
     
   sprintf(logline,"event number:%d/%d at %d:%d:%d %d/%d/%d %s:%s",
-  Buff->buffer[2],Buff->buffer[1],  // event number amoung number
-  Buff->buffer[5],Buff->buffer[4],Buff->buffer[3],  //hh:mm:ss
-  Buff->buffer[6],Buff->buffer[7],2000+Buff->buffer[8], //day/month/year
-  tpzone,       //zone
-  PmaxLogEvents[Buff->buffer[10]]
-);  
+   Buff->buffer[2],Buff->buffer[1],  // event number amoung number
+   Buff->buffer[5],Buff->buffer[4],Buff->buffer[3],  //hh:mm:ss
+   Buff->buffer[6],Buff->buffer[7],2000+Buff->buffer[8], //day/month/year
+   tpzone,       //zone
+   PmaxLogEvents[Buff->buffer[10]]
+  );  
   strcpy (PmaxLog[Buff->buffer[2]],logline);
   DEBUG(LOG_NOTICE,"event log:%s",logline);
+  if(fileOpen==1){
+	fprintf(fp, "%s \n",logline);
+
+  if(Buff->buffer[2]==Buff->buffer[1])
+	fclose(fp);//close file
+  }
  }
  
   void PmaxStatusUpdate(struct PlinkBuffer  * Buff)
@@ -289,6 +309,23 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
  }
  
  
+  void ExecuteScript(char *filename){
+	
+	int existFile;
+
+	if (EXECUTE_SCRIPTS==1){
+		existFile = system (filename);;
+		if(existFile==0){
+			DEBUG(LOG_INFO,"Script %s executed",filename );
+		}else{
+			DEBUG(LOG_ERR,"Script %s not found.CODE %i",filename,existFile );
+		}
+	}else{
+		DEBUG(LOG_INFO,"Scripts are not enabled" );
+	}
+  }
+
+  
   void PmaxStatusUpdatePanel(struct PlinkBuffer  * Buff)    
  {
   sendBuffer(&PowerlinkCommand[Pmax_ACK]);
@@ -325,14 +362,16 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
       gatestat.zone[i].stat.alarm=XplFalse;
       }
     }   
+	ExecuteScript("/etc/pmaxd/disarmed &");
   }
   
-  // if disarmed or exit delay or exit delay
+  // if armed-home
   if ( pmaxsystemstatus==1 ) {
    // pmaxSystem.xplalarmstatus=AlarmDisarmed;
    // pmaxSystem.xplpmaxstatus=PmaxDisarmed;
     gatestat.pmstatus=XplStatusPMArmingHome;
     gatestat.status=XplStatusDisarmed;
+	
   }
   
     // if disarmed or exit delay or exit delay
@@ -341,6 +380,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
    // pmaxSystem.xplpmaxstatus=PmaxDisarmed;
     gatestat.pmstatus=XplStatusPMArmingAway;
     gatestat.status=XplStatusDisarmed;
+	
   }
   
   // if armed home or armed home bypass      
@@ -353,6 +393,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
       //if (pmaxSystem.sensor[i].enrolled && pmaxSystem.sensor[i].type==perimeter) pmaxSystem.sensor[i].armed=true; 
       if (gatestat.zone[i].enrolled && gatestat.zone[i].info.zonetype==XplTypePerimeter) gatestat.zone[i].stat.armed=XplTrue; 
     }
+	ExecuteScript("/etc/pmaxd/armedHome &");
   }
   
   // if entry delay or armed away or armed away bypass    
@@ -367,6 +408,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
         gatestat.zone[i].stat.armed=XplFalse;
       }
     }
+	ExecuteScript("/etc/pmaxd/armedAway &");
   }
   
   if (pmaxsystemstate & 1<<7) {
@@ -406,6 +448,7 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
   DEBUG(LOG_INFO,"Status Update : Zone state/Battery");
   int i=0;
   char * ZoneBuffer;
+  char * script;
   ZoneBuffer=Buff->buffer+3;
   for (i=1;i<=30;i++)
   {
@@ -415,7 +458,9 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
      if ( gatestat.status==XplStatusArmed    ) gatestat.zone[i].stat.alarm=XplTrue; 
       DEBUG(LOG_INFO,"Zone %d is open",i );
   //    pmaxSystem.sensor[i].state=SensorOpen;
-      gatestat.zone[i].stat.alert=XplTrue;      
+      gatestat.zone[i].stat.alert=XplTrue;    
+	  sprintf(script,"/etc/pmaxd/zoneOpen %d &",i);
+	  ExecuteScript(script);
     }
     else {
       gatestat.zone[i].stat.alert=XplFalse;
@@ -430,6 +475,8 @@ void PmaxEnroll(struct PlinkBuffer  * Buff)
     if (ZoneBuffer[byte] & 1<<offset) {
       DEBUG(LOG_INFO,"Zone %d battery is low",i );
       gatestat.zone[i].stat.lowbattery=XplTrue;
+	  sprintf(script,"/etc/pmaxd/zoneBatt %d &",i);
+	  ExecuteScript(script);
     }
     else  {
       gatestat.zone[i].stat.lowbattery=XplFalse;

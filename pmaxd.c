@@ -59,6 +59,8 @@ void initLog(int verboseLevel) {
   DEBUG (LOG_NOTICE, "Verbose level: %d", verboseLevel);     
 }
 
+
+  
 void initSerialPort() {
   struct termios options;
 	const config_setting_t *device;
@@ -76,6 +78,7 @@ void initSerialPort() {
 	if (fd == -1) {
     DEBUG(LOG_ERR,"open_port: Unable to open serial ports");
     printf("exiting: no serial port available");
+	ExecuteScript("/etc/pmaxd/errorSerial &");
     exit(EXIT_FAILURE);/*
     * Could not open the port.
 	 */}
@@ -368,29 +371,31 @@ int main(int argc, char **argv) {
   cf = &cfg;
   config_init(cf);
   
-  if (!config_read_file(cf, "/etc/pmaxd.conf")) {
-            fprintf(stderr, "%s:%d - %s\n",
-                config_error_file(cf),
+  if (!config_read_file(cf, "/etc/pmaxd/pmaxd.conf")) {
+         fprintf(stderr, "%s:%d - %s\n",
+				config_error_file(cf),
                 config_error_line(cf),
                 config_error_text(cf));
             config_destroy(cf);
             return(EXIT_FAILURE);
-        }
+    }
         
-        config_lookup_int(cf, "packet_timeout", &PACKET_TIMEOUT);
-
+    config_lookup_int(cf, "packet_timeout", &PACKET_TIMEOUT);
+	config_lookup_int(cf, "execute_scripts", &EXECUTE_SCRIPTS);
+	
         
 
          
   /* Our process ID and Session ID */
   pid_t pid=0, sid=0;        
-  
+  char * script;
   int helpOption = 0;
    
   int j=0;
   int k=0;
   struct PlinkBuffer testbuffer;
- 
+
+  
   parseCommandLineArgs(argc, argv); 
         
   /* Fork off the parent process */
@@ -444,8 +449,6 @@ int main(int argc, char **argv) {
  	
  	int loop=0;
   DEBUG(LOG_NOTICE,"Starting......");
-
-  
   
  	initXpl();
   initSerialPort();  
