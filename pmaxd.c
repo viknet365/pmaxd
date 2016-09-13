@@ -15,7 +15,7 @@
 #include <stdbool.h>
 #include <libconfig.h> 
 
-
+ 
 time_t lastValidSerialIO;
 
 #include "debug.h" 
@@ -388,7 +388,7 @@ int main(int argc, char **argv) {
          
   /* Our process ID and Session ID */
   pid_t pid=0, sid=0;        
-  char * script;
+  
   int helpOption = 0;
    
   int j=0;
