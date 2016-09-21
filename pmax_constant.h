@@ -179,12 +179,12 @@ sendBuffer(&PowerlinkCommand[Pmax_REENROLL]);
 	if (EXECUTE_SCRIPTS==1){
 		existFile = system (filename);;
 		if(existFile==0){
-			DEBUG(LOG_INFO,"Script %s executed",filename );
+			DEBUG(LOG_NOTICE,"Script %s executed",filename );
 		}else{
-			DEBUG(LOG_ERR,"Script %s not found.CODE %i",filename,existFile );
+			DEBUG(LOG_NOTICE,"Script %s not found.CODE %i",filename,existFile );
 		}
 	}else{
-		DEBUG(LOG_INFO,"Scripts are not enabled" );
+		DEBUG(LOG_NOTICE,"Scripts are not enabled" );
 	}
   }
 
@@ -375,8 +375,7 @@ if(fp == NULL)
   if (pmaxsystemstatus==0 ) {
    // pmaxSystem.xplalarmstatus=AlarmDisarmed;
    // pmaxSystem.xplpmaxstatus=PmaxDisarmed;
-    if ( gatestat.status!=XplStatusDisarmed && 
-          ( gatestat.pmstatus==XplStatusPMArmedHome || gatestat.pmstatus==XplStatusPMArmingHome || gatestat.pmstatus==XplStatusPMArmingAway || gatestat.pmstatus==XplStatusDisarmed )){
+    if ( gatestat.status!=XplStatusDisarmed ){
         ExecuteScript("/etc/pmaxd/disarmed &");
     }
     gatestat.pmstatus=XplStatusPMDisarmed;
@@ -413,7 +412,7 @@ if(fp == NULL)
   if (pmaxsystemstatus==4 ||  pmaxsystemstatus==10 )  {
     //pmaxSystem.xplalarmstatus=AlarmArmed;
     //pmaxSystem.xplpmaxstatus=PmaxArmedHome;
-    if ( gatestat.status==XplStatusDisarmed ){
+    if ( gatestat.pmstatus!=XplStatusPMArmedHome ){
         ExecuteScript("/etc/pmaxd/armedHome &");
     }
     gatestat.pmstatus=XplStatusPMArmedHome; 
@@ -429,7 +428,7 @@ if(fp == NULL)
   if (pmaxsystemstatus==3 || pmaxsystemstatus==5 || pmaxsystemstatus==11)  {
  //   pmaxSystem.xplalarmstatus=AlarmArmed;
  //   pmaxSystem.xplpmaxstatus=PmaxArmedAway;
-    if ( gatestat.status==XplStatusDisarmed ){
+    if ( gatestat.pmstatus!=XplStatusPMArmedAway ){
         ExecuteScript("/etc/pmaxd/armedAway &");
     }
     gatestat.pmstatus=XplStatusPMArmedAway; 
@@ -479,7 +478,7 @@ if(fp == NULL)
    void PmaxStatusUpdateZoneBat(struct PlinkBuffer  * Buff)
  {
   sendBuffer(&PowerlinkCommand[Pmax_ACK]);
-  DEBUG(LOG_INFO,"Status Update : Zone state/Battery");
+  DEBUG(LOG_NOTICE,"Status Update : Zone state/Battery");
   int i=0;
   char * ZoneBuffer;
   char  script[100];
@@ -515,9 +514,9 @@ if(fp == NULL)
     int byte=(i-1)/8;
     int offset=(i-1)%8;
     if (ZoneBuffer[byte] & 1<<offset) {
-      DEBUG(LOG_INFO,"Zone %d battery is low!!",i );
-      if ( (gatestat.zone[i].enrolled) && gatestat.zone[i].stat.lowbattery==XplFalse){        
-        sprintf(script,"/etc/pmaxd/zoneBatt %d &",i);
+      DEBUG(LOG_NOTICE,"Zone %d %s battery is low!! %s lowbatt: %s",i,gatestat.zone[i].info.id,gatestat.zone[i].enrolled?"Enrolled":"Not Enrolled",gatestat.zone[i].stat.lowbattery? "True":"False" );
+      if ( gatestat.zone[i].stat.lowbattery!=XplTrue){        
+        sprintf(script,"/etc/pmaxd/zoneBatt %s %d &",gatestat.zone[i].info.id,i);
         ExecuteScript(script);
       }
       gatestat.zone[i].stat.lowbattery=XplTrue;
