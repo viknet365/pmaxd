@@ -11,6 +11,7 @@ http://www.domoticaforum.eu/viewtopic.php?f=68&t=7152
 The external script must set as follow
 
 Directory /etc/pmaxd/
+
 alarm
 
 armedAway
