@@ -152,6 +152,7 @@ for (i=2;i<=6;i++)
       gatestat.zone[i].info.zonetype=XplTypePerimeter;
       gatestat.zone[i].info.alarmtype=XplAlarmTypeBurglary;
       gatestat.zone[i].stat.alarm=XplFalse;
+      gatestat.zone[i].stat.tamper=XplFalse;
       sprintf(gatestat.zone[i].info.id,"%d",i);      
   }
         
@@ -171,7 +172,21 @@ usleep(20*PACKET_TIMEOUT);
 sendBuffer(&PowerlinkCommand[Pmax_REENROLL]);
 }
 
+  void ExecuteScript(char *filename){
+	
+	int existFile;
 
+	if (EXECUTE_SCRIPTS==1){
+		existFile = system (filename);;
+		if(existFile==0){
+			DEBUG(LOG_NOTICE,"Script %s executed",filename );
+		}else{
+			DEBUG(LOG_NOTICE,"Script %s not found.CODE %i",filename,existFile );
+		}
+	}else{
+		DEBUG(LOG_NOTICE,"Scripts are not enabled" );
+	}
+  }
 
 
 void PmaxEnroll(struct PlinkBuffer  * Buff)
@@ -249,12 +264,23 @@ if(fp == NULL)
   DEBUG(LOG_INFO,"Status Update : Zone active/tampered");
   int i=0;
   char * ZoneBuffer;
+  char  script[100];
+  //char * script;
   ZoneBuffer=Buff->buffer+3;
   for (i=1;i<=30;i++)
   {
     int byte=(i-1)/8;
     int offset=(i-1)%8;
-    if (ZoneBuffer[byte] & 1<<offset) DEBUG(LOG_INFO,"Zone %d is active",i );
+    if (ZoneBuffer[byte] & 1<<offset){ 
+    
+        //DEBUG(LOG_INFO,"Zone %d is active",i );
+	   // sprintf(script,"/etc/pmaxd/zoneActive %d ON &", i );
+	   // ExecuteScript(script);        
+    }else{
+        //DEBUG(LOG_INFO,"Zone %d is restore",i );
+	    //sprintf(script,"/etc/pmaxd/zoneActive %d OFF &", i );
+	    //ExecuteScript(script);   
+    }
           
   }
   ZoneBuffer=Buff->buffer+7;  
@@ -266,11 +292,20 @@ if(fp == NULL)
     {
       DEBUG(LOG_INFO,"Zone %d is tampered",i );
 //      pmaxSystem.sensor[i].tampered=ZoneBuffer[byte] & 1<<offset;
+      if(gatestat.zone[i].stat.tamper!=XplTrue){
+        sprintf(script,"/etc/pmaxd/zoneTampered %d ON&",i);
+        ExecuteScript(script); 
+      }
       gatestat.zone[i].stat.tamper=XplTrue;
+         
     }
     else
     {
-      gatestat.zone[i].stat.tamper=XplFalse;    
+      if(gatestat.zone[i].stat.tamper!=XplFalse){
+        sprintf(script,"/etc/pmaxd/zoneTampered %d OFF &",i);
+        ExecuteScript(script); 
+      }        
+      gatestat.zone[i].stat.tamper=XplFalse;                
     }      
   } 
  }
@@ -309,21 +344,7 @@ if(fp == NULL)
  }
  
  
-  void ExecuteScript(char *filename){
-	
-	int existFile;
 
-	if (EXECUTE_SCRIPTS==1){
-		existFile = system (filename);;
-		if(existFile==0){
-			DEBUG(LOG_INFO,"Script %s executed",filename );
-		}else{
-			DEBUG(LOG_ERR,"Script %s not found.CODE %i",filename,existFile );
-		}
-	}else{
-		DEBUG(LOG_INFO,"Scripts are not enabled" );
-	}
-  }
 
   
   void PmaxStatusUpdatePanel(struct PlinkBuffer  * Buff)    
@@ -331,6 +352,7 @@ if(fp == NULL)
   sendBuffer(&PowerlinkCommand[Pmax_ACK]);
   char tpbuff[MAX_BUFFER_SIZE];
   char tpbuff1[MAX_BUFFER_SIZE];
+  char  script[100];
   tpbuff[0]=0;
   
   int pmaxsystemstatus=Buff->buffer[3];
@@ -353,6 +375,9 @@ if(fp == NULL)
   if (pmaxsystemstatus==0 ) {
    // pmaxSystem.xplalarmstatus=AlarmDisarmed;
    // pmaxSystem.xplpmaxstatus=PmaxDisarmed;
+    if ( gatestat.status!=XplStatusDisarmed ){
+        ExecuteScript("/etc/pmaxd/disarmed &");
+    }
     gatestat.pmstatus=XplStatusPMDisarmed;
     gatestat.status=XplStatusDisarmed;
     for (i=1;i<=30;i++) {
@@ -362,7 +387,7 @@ if(fp == NULL)
       gatestat.zone[i].stat.alarm=XplFalse;
       }
     }   
-	ExecuteScript("/etc/pmaxd/disarmed &");
+
   }
   
   // if armed-home
@@ -387,19 +412,25 @@ if(fp == NULL)
   if (pmaxsystemstatus==4 ||  pmaxsystemstatus==10 )  {
     //pmaxSystem.xplalarmstatus=AlarmArmed;
     //pmaxSystem.xplpmaxstatus=PmaxArmedHome;
-    gatestat.pmstatus=XplStatusPMArmedHome;    
+    if ( gatestat.pmstatus!=XplStatusPMArmedHome ){
+        ExecuteScript("/etc/pmaxd/armedHome &");
+    }
+    gatestat.pmstatus=XplStatusPMArmedHome; 
     gatestat.status=XplStatusArmed;
     for (i=1;i<=30;i++) {
       //if (pmaxSystem.sensor[i].enrolled && pmaxSystem.sensor[i].type==perimeter) pmaxSystem.sensor[i].armed=true; 
       if (gatestat.zone[i].enrolled && gatestat.zone[i].info.zonetype==XplTypePerimeter) gatestat.zone[i].stat.armed=XplTrue; 
     }
-	ExecuteScript("/etc/pmaxd/armedHome &");
+	
   }
   
   // if entry delay or armed away or armed away bypass    
   if (pmaxsystemstatus==3 || pmaxsystemstatus==5 || pmaxsystemstatus==11)  {
  //   pmaxSystem.xplalarmstatus=AlarmArmed;
  //   pmaxSystem.xplpmaxstatus=PmaxArmedAway;
+    if ( gatestat.pmstatus!=XplStatusPMArmedAway ){
+        ExecuteScript("/etc/pmaxd/armedAway &");
+    }
     gatestat.pmstatus=XplStatusPMArmedAway; 
     gatestat.status=XplStatusArmed;
     for (i=1;i<=30;i++) {
@@ -408,7 +439,7 @@ if(fp == NULL)
         gatestat.zone[i].stat.armed=XplFalse;
       }
     }
-	ExecuteScript("/etc/pmaxd/armedAway &");
+
   }
   
   if (pmaxsystemstate & 1<<7) {
@@ -421,6 +452,8 @@ if(fp == NULL)
   // if system state flag says it is a zone event (bit 5 of system flag)  
    if (pmaxsystemstate & 1<<5) {
     sprintf(tpbuff1,"     Zone %d %s", Buff->buffer[5],PmaxZoneEventTypes[Buff->buffer[6]]);
+    	sprintf(script,"/etc/pmaxd/zoneEvent %d ", Buff->buffer[5]);
+        ExecuteScript(script);   
     if  ( 0<Buff->buffer[5] && Buff->buffer[5]<30 && Buff->buffer[6]==5 )
     {
     DEBUG(LOG_INFO,"setting Zone %d to interior",Buff->buffer[5] );
@@ -445,10 +478,10 @@ if(fp == NULL)
    void PmaxStatusUpdateZoneBat(struct PlinkBuffer  * Buff)
  {
   sendBuffer(&PowerlinkCommand[Pmax_ACK]);
-  DEBUG(LOG_INFO,"Status Update : Zone state/Battery");
+  DEBUG(LOG_NOTICE,"Status Update : Zone state/Battery");
   int i=0;
   char * ZoneBuffer;
-  char * script;
+  char  script[100];
   ZoneBuffer=Buff->buffer+3;
   for (i=1;i<=30;i++)
   {
@@ -458,12 +491,20 @@ if(fp == NULL)
      if ( gatestat.status==XplStatusArmed    ) gatestat.zone[i].stat.alarm=XplTrue; 
       DEBUG(LOG_INFO,"Zone %d is open",i );
   //    pmaxSystem.sensor[i].state=SensorOpen;
+      if ( (gatestat.zone[i].enrolled) && gatestat.zone[i].stat.alert==XplFalse){
+          	sprintf(script,"/etc/pmaxd/zoneOpen %d &",i);
+            ExecuteScript(script);
+      }
       gatestat.zone[i].stat.alert=XplTrue;    
-	  sprintf(script,"/etc/pmaxd/zoneOpen %d &",i);
-	  ExecuteScript(script);
     }
     else {
-      gatestat.zone[i].stat.alert=XplFalse;
+      if ( (gatestat.zone[i].enrolled) && gatestat.zone[i].stat.alert==XplTrue){  
+          DEBUG(LOG_INFO,"Estado %s::::" , gatestat.zone[i].stat.alert);
+          sprintf(script,"/etc/pmaxd/zoneClose %d &",i);
+          DEBUG(LOG_INFO,"Zone %d is close",i ) 
+          ExecuteScript(script);       
+      }
+      gatestat.zone[i].stat.alert=XplFalse;    
   //    pmaxSystem.sensor[i].state=SensorClose;
     }     
   }
@@ -473,10 +514,12 @@ if(fp == NULL)
     int byte=(i-1)/8;
     int offset=(i-1)%8;
     if (ZoneBuffer[byte] & 1<<offset) {
-      DEBUG(LOG_INFO,"Zone %d battery is low",i );
+      DEBUG(LOG_NOTICE,"Zone %d %s battery is low!! %s lowbatt: %s",i,gatestat.zone[i].info.id,gatestat.zone[i].enrolled?"Enrolled":"Not Enrolled",gatestat.zone[i].stat.lowbattery? "True":"False" );
+      if ( gatestat.zone[i].stat.lowbattery!=XplTrue){        
+        sprintf(script,"/etc/pmaxd/zoneBatt %s %d &",gatestat.zone[i].info.id,i);
+        ExecuteScript(script);
+      }
       gatestat.zone[i].stat.lowbattery=XplTrue;
-	  sprintf(script,"/etc/pmaxd/zoneBatt %d &",i);
-	  ExecuteScript(script);
     }
     else  {
       gatestat.zone[i].stat.lowbattery=XplFalse;
